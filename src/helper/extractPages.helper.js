@@ -4,7 +4,12 @@ import { v1_base_url } from "../utils/base_v1.js";
 import { DEFAULT_HEADERS } from "../configs/header.config.js";
 
 const axiosInstance = axios.create({
-  headers: DEFAULT_HEADERS,
+  headers: {
+    ...DEFAULT_HEADERS,
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+    Referer: `https://${v1_base_url}/`,
+  },
   timeout: 15000,
 });
 
@@ -12,11 +17,17 @@ async function extractPage(page, params) {
   try {
     const url = `https://${v1_base_url}/${params}?page=${page}`;
 
-    console.log("Fetching:", url);
+    console.log("Fetching URL:", url);
 
     const resp = await axiosInstance.get(url);
 
+    console.log("STATUS:", resp.status);
+
     const $ = cheerio.load(resp.data);
+
+    console.log("HTML DEBUG START");
+    console.log($.html().slice(0, 5000));
+    console.log("HTML DEBUG END");
 
     const totalPages =
       Number(
@@ -35,21 +46,23 @@ async function extractPage(page, params) {
 
     const animeElements = $(".film_list-wrap .flw-item");
 
-    console.log("Found items:", animeElements.length);
+    console.log("FOUND ITEMS:", animeElements.length);
 
     const data = animeElements
       .map((index, element) => {
         try {
-          const href =
-            $(".film-poster > a", element).attr("href") || "";
+          const anchor = $(".film-poster a", element);
 
-          const id = href
-            .split("/")
-            .pop()
-            ?.split("?")[0] || "";
+          const href = anchor.attr("href") || "";
 
-          const data_id =
-            $(".film-poster > a", element).attr("data-id") || "";
+          const id =
+            href
+              .split("/")
+              .pop()
+              ?.split("?")[0]
+              ?.trim() || "";
+
+          const data_id = anchor.attr("data-id") || "";
 
           const poster =
             $(".film-poster img", element).attr("data-src") ||
@@ -115,14 +128,15 @@ async function extractPage(page, params) {
             adultContent,
           };
         } catch (err) {
-          console.error("Item parse error:", err);
+          console.error("ITEM PARSE ERROR:", err);
           return null;
         }
       })
       .get()
       .filter(Boolean);
 
-    console.log("Extracted:", data.length);
+    console.log("EXTRACTED ITEMS:", data.length);
+    console.log("FIRST ITEM:", data[0]);
 
     return [data, parseInt(totalPages, 10)];
   } catch (error) {
