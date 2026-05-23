@@ -3,12 +3,21 @@ import * as cheerio from "cheerio";
 import { v1_base_url } from "../utils/base_v1.js";
 import { DEFAULT_HEADERS } from "../configs/header.config.js";
 
-const axiosInstance = axios.create({ headers: DEFAULT_HEADERS });
+const axiosInstance = axios.create({
+  headers: DEFAULT_HEADERS,
+  timeout: 15000,
+});
 
 async function extractPage(page, params) {
   try {
-    const resp = await axiosInstance.get(`https://${v1_base_url}/${params}?page=${page}`);
+    const url = `https://${v1_base_url}/${params}?page=${page}`;
+
+    console.log("Fetching:", url);
+
+    const resp = await axiosInstance.get(url);
+
     const $ = cheerio.load(resp.data);
+
     const totalPages =
       Number(
         $('.pre-pagination nav .pagination > .page-item a[title="Last"]')
@@ -23,52 +32,78 @@ async function extractPage(page, params) {
             ?.text()
             ?.trim()
       ) || 1;
-      
-    const contentSelector = params.includes("az-list")
-      ? ".tab-content"
-      : "#main-content";
-    const data = await Promise.all(
-      $(`${contentSelector} .film_list-wrap .flw-item`).map(
-        async (index, element) => {
-          const $fdiItems = $(".film-detail .fd-infor .fdi-item", element);
-          const showType = $fdiItems
-            .filter((_, item) => {
-              const text = $(item).text().trim().toLowerCase();
-              return ["tv", "ona", "movie", "ova", "special", "music"].some((type) =>
-                text.includes(type)
-              );
-            })
-            .first();
-          const poster = $(".film-poster>img", element).attr("data-src");
-          const title = $(".film-detail .film-name", element).text();
-          const japanese_title = $(".film-detail>.film-name>a", element).attr(
-            "data-jname"
-          );
-          const description = $(".film-detail .description", element)
-            .text()
-            .trim();
-          const data_id = $(".film-poster>a", element).attr("data-id");
-          const id = $(".film-poster>a", element).attr("href").split("/").pop();
-          const tvInfo = {
-            showType: showType ? showType.text().trim() : "Unknown",
-            duration: $(".film-detail .fd-infor .fdi-duration", element)
+
+    const animeElements = $(".film_list-wrap .flw-item");
+
+    console.log("Found items:", animeElements.length);
+
+    const data = animeElements
+      .map((index, element) => {
+        try {
+          const href =
+            $(".film-poster > a", element).attr("href") || "";
+
+          const id = href
+            .split("/")
+            .pop()
+            ?.split("?")[0] || "";
+
+          const data_id =
+            $(".film-poster > a", element).attr("data-id") || "";
+
+          const poster =
+            $(".film-poster img", element).attr("data-src") ||
+            $(".film-poster img", element).attr("src") ||
+            "";
+
+          const title =
+            $(".film-detail .film-name", element)
               .text()
-              .trim(),
+              .trim() ||
+            $(".dynamic-name", element)
+              .text()
+              .trim() ||
+            "";
+
+          const japanese_title =
+            $(".film-detail .film-name a", element).attr("data-jname") ||
+            "";
+
+          const description =
+            $(".film-detail .description", element)
+              .text()
+              .trim() || "";
+
+          const showType =
+            $(".fdi-item", element)
+              .first()
+              .text()
+              .trim() || "Unknown";
+
+          const duration =
+            $(".fdi-duration", element)
+              .text()
+              .trim() || "";
+
+          const tvInfo = {
+            showType,
+            duration,
           };
-          let adultContent = false;
-          const tickRateText = $(".film-poster>.tick-rate", element)
-            .text()
-            .trim();
-          if (tickRateText.includes("18+")) {
-            adultContent = true;
-          }
 
           ["sub", "dub", "eps"].forEach((property) => {
-            const value = $(`.tick .tick-${property}`, element).text().trim();
+            const value = $(`.tick-${property}`, element)
+              .text()
+              .trim();
+
             if (value) {
               tvInfo[property] = value;
             }
           });
+
+          const adultContent = $(element)
+            .text()
+            .includes("18+");
+
           return {
             id,
             data_id,
@@ -79,13 +114,21 @@ async function extractPage(page, params) {
             tvInfo,
             adultContent,
           };
+        } catch (err) {
+          console.error("Item parse error:", err);
+          return null;
         }
-      )
-    );
+      })
+      .get()
+      .filter(Boolean);
+
+    console.log("Extracted:", data.length);
+
     return [data, parseInt(totalPages, 10)];
   } catch (error) {
     console.error(`Error extracting data from page ${page}:`, error.message);
-    throw error;
+
+    return [[], 1];
   }
 }
 
