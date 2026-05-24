@@ -1,17 +1,8 @@
-import axios from "axios";
 import * as cheerio from "cheerio";
-import { v1_base_url } from "../utils/base_v1.js";
-import { DEFAULT_HEADERS } from "../configs/header.config.js";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 
-const axiosInstance = axios.create({
-  headers: {
-    ...DEFAULT_HEADERS,
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-    Referer: `https://${v1_base_url}/`,
-  },
-  timeout: 15000,
-});
+import { v1_base_url } from "../utils/base_v1.js";
 
 async function extractPage(page, params) {
   try {
@@ -19,11 +10,29 @@ async function extractPage(page, params) {
 
     console.log("Fetching URL:", url);
 
-    const resp = await axiosInstance.get(url);
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
 
-    console.log("STATUS:", resp.status);
+    const pageObj = await browser.newPage();
 
-    const $ = cheerio.load(resp.data);
+    await pageObj.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+    );
+
+    await pageObj.goto(url, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    const html = await pageObj.content();
+
+    await browser.close();
+
+    const $ = cheerio.load(html);
 
     console.log("HTML DEBUG START");
     console.log($.html().slice(0, 5000));
@@ -44,7 +53,10 @@ async function extractPage(page, params) {
             ?.trim()
       ) || 1;
 
-    const animeElements = $(".film_list-wrap .flw-item");
+    const animeElements =
+      $(".film_list-wrap .flw-item").length > 0
+        ? $(".film_list-wrap .flw-item")
+        : $(".flw-item");
 
     console.log("FOUND ITEMS:", animeElements.length);
 
@@ -57,7 +69,9 @@ async function extractPage(page, params) {
 
           const id =
             href
+              .replace(/^https?:\/\/[^/]+/i, "")
               .split("/")
+              .filter(Boolean)
               .pop()
               ?.split("?")[0]
               ?.trim() || "";

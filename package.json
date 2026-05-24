@@ -11,6 +11,7 @@
   "author": "JustAnimeCore",
   "license": "MIT",
   "dependencies": {
+    "@sparticuz/chromium": "^148.0.0",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "cheerio": "^1.0.0-rc.12",
@@ -20,7 +21,8 @@
     "dotenv": "^17.2.0",
     "express": "^5.2.1",
     "image-pixels": "^2.2.2",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "puppeteer-core": "^25.0.4"
   },
   "type": "module",
   "devDependencies": {
