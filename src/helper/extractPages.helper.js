@@ -1,8 +1,11 @@
 import * as cheerio from "cheerio";
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import chromium from "@sparticuz/chromium";
 
 import { v1_base_url } from "../utils/base_v1.js";
+
+puppeteer.use(StealthPlugin());
 
 async function extractPage(page, params) {
   try {
@@ -11,7 +14,7 @@ async function extractPage(page, params) {
     console.log("Fetching URL:", url);
 
     const browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, "--no-sandbox"],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
@@ -23,16 +26,16 @@ async function extractPage(page, params) {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
     );
 
+    await pageObj.setExtraHTTPHeaders({
+      "accept-language": "en-US,en;q=0.9",
+    });
+
     await pageObj.goto(url, {
-      waitUntil: "domcontentloaded",
+      waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    await pageObj.waitForSelector(".flw-item", {
-      timeout: 15000,
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 8000));
 
     const html = await pageObj.content();
 
