@@ -24,19 +24,25 @@ async function extractPage(page, params) {
     );
 
     await pageObj.goto(url, {
-      waitUntil: "networkidle2",
+      waitUntil: "domcontentloaded",
       timeout: 60000,
     });
 
+    await pageObj.waitForSelector(".flw-item", {
+      timeout: 15000,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     const html = await pageObj.content();
+
+    console.log("HTML DEBUG START");
+    console.log(html.slice(0, 10000));
+    console.log("HTML DEBUG END");
 
     await browser.close();
 
     const $ = cheerio.load(html);
-
-    console.log("HTML DEBUG START");
-    console.log($.html().slice(0, 5000));
-    console.log("HTML DEBUG END");
 
     const totalPages =
       Number(
